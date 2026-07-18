@@ -1,0 +1,62 @@
+#include <iostream>
+#include <thread>
+#include<semaphore>
+#include<mutex>
+#include<queue>
+#include <condition_variable>
+
+using namespace std;
+
+class ProducerConsumer {
+    private:
+    int capacity;
+    queue<int> q;
+    mutex mtx;
+    counting_semaphore<3> empty;
+    counting_semaphore<3> fill;
+    
+    public:
+    
+    ProducerConsumer(int n) : empty(n), fill(10), capacity(n){
+        
+    }
+    
+    void produce(){
+        empty.acquire();
+        {
+            unique_lock<mutex> lock(mtx);
+            q.push(100);
+        }
+        fill.release();
+    }
+    
+    int consume(){
+        int item;
+        {
+            fill.acquire();
+            unique_lock<mutex> lock(mtx);
+            item = q.front();
+            q.pop();
+        }
+        empty.release();
+        return item;
+        
+    }
+};
+
+int main() {
+    ProducerConsumer producerConsumer(3);
+    thread t1 = thread(&ProducerConsumer::produce, &producerConsumer);
+    thread t2 = thread(&ProducerConsumer::produce, &producerConsumer);
+    thread t3 = thread(&ProducerConsumer::consume, &producerConsumer);
+    thread t4 = thread(&ProducerConsumer::produce, &producerConsumer);
+    thread t5 = thread(&ProducerConsumer::consume, &producerConsumer);
+    
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+    t5.join();
+
+    return 0;
+}
