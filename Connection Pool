@@ -1,0 +1,48 @@
+#include <iostream>
+#include <queue>
+#include <mutex>
+#include <condition_variable>
+
+using namespace std;
+
+class ConnectionPool {
+private:
+    queue<int> pool;
+
+    mutex mtx;
+    condition_variable cv;
+
+public:
+    ConnectionPool(int n)
+    {
+        for(int i = 0; i < n; i++)
+        {
+            pool.push(i);
+        }
+    }
+
+    int acquire()
+    {
+        unique_lock<mutex> lock(mtx);
+
+        while(pool.empty())
+        {
+            cv.wait(lock);
+        }
+
+        int conn = pool.front();
+        pool.pop();
+
+        return conn;
+    }
+
+    void release(int conn)
+    {
+        {
+            lock_guard<mutex> lock(mtx);
+            pool.push(conn);
+        }
+
+        cv.notify_one();
+    }
+};
