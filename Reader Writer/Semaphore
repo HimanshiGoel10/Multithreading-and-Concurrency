@@ -1,0 +1,59 @@
+#include <iostream>
+#include <thread>
+#include<semaphore>
+#include<shared_mutex>
+#include<mutex>
+
+using namespace std;
+
+class ReaderWriter {
+    
+    private:
+    int data;
+    counting_semaphore <1> readWrite(1);
+    mutex mtx;
+    int readersCount;
+    
+    
+    public:
+    
+    ReaderWriter(int data){
+        this->data = data; 
+        readersCount = 0;
+    }
+    
+    void reader (){
+        unique_lock <mutex> lock(mtx);
+        readersCount++;
+        if(readersCount==1){
+            readWrite.acquire();
+        }
+        lock.unlock();
+        cout<<data<<" ";
+        lock.lock();
+        readersCount--;
+        if(readersCount==0){
+            readWrite.release();
+        }
+        lock.unlock();
+    }
+    
+    void writer(){
+        readWrite.acquire();
+        data+=10;
+        readWrite.release();
+    }
+};
+
+int main() {
+    ReaderWriter readerWriter(0);
+    thread t1 = thread(&ReaderWriter::reader, &readerWriter);
+    thread t2 = thread(&ReaderWriter::reader, &readerWriter);
+    thread t3 = thread(&ReaderWriter::writer, &readerWriter);
+    thread t4 = thread(&ReaderWriter::reader, &readerWriter);
+    
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+}
