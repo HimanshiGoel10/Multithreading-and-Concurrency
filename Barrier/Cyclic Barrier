@@ -1,0 +1,53 @@
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <semaphore>
+#include <condition_variable>
+
+using namespace std;
+
+class Barrier {
+    private:
+    int capacity;
+    mutex mtx;
+    int count;
+    condition_variable cv;
+    int generation;
+    
+    public:
+    
+    Barrier(int n){
+        capacity = n;
+        count = 0;
+        generation = 0;
+    }
+    
+    void wait(){
+        unique_lock <mutex> lock(mtx);
+        int myGeneration = generation;
+        count++;
+        if(count==capacity){
+            count = 0;
+            generation++;
+            cv.notify_all();
+        }
+        while(generation==myGeneration){
+            cv.wait(lock);
+        }
+    }
+};
+
+int main() {
+    
+    Barrier barrier(3);
+    
+    thread t1 = thread(&Barrier::wait, &barrier);
+    thread t2 = thread(&Barrier::wait, &barrier);
+    thread t3 = thread(&Barrier::wait, &barrier);
+    thread t4 = thread(&Barrier::wait, &barrier);
+    
+    t1.join(); t2.join();
+    t3.join(); t4.join();
+    
+    return 0;
+}
