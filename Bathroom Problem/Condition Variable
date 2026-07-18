@@ -1,0 +1,83 @@
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <semaphore>
+#include <condition_variable>
+using namespace std;
+
+class BathroomProblem {
+    private:
+    mutex mtx;
+    condition_variable cv;
+    
+    enum Gender{
+        male,
+        female,
+        neutral
+    }
+    Gender owner;
+    int count;
+    int n;
+    
+    public:
+    BathroomProblem (int n){
+        owner = neutral;
+        count = 0;
+        this->n = n;
+    }
+    
+    void MaleEnter() {
+        unique_lock <mutex> lock(mtx);
+        while(owner==female || count==n){
+            cv.wait(lock);
+        }
+        owner = male;
+        count++;
+    }
+    
+    void FemaleEnter() {
+        unique_lock <mutex> lock(mtx);
+        while(owner==male || count==n){
+            cv.wait(lock);
+        }
+        owner = female;
+        count++;
+    }
+    
+    void MaleExit() {
+        unique_lock <mutex> lock(mtx);
+        count--;
+        if(count==0){
+            owner = neutral;
+        }
+        cv.notify_all();
+    }
+    
+    void FemaleExit() {
+        unique_lock <mutex> lock(mtx);
+        count--;
+        if(count==0){
+            owner = neutral;
+        }
+        cv.notify_all();
+    }
+};
+int main() {
+    BathroomProblem bathroomProblem(3);
+    
+    thread t1 = thread(&BathroomProblem::MaleEnter, &bathroomProblem);
+    thread t2 = thread(&BathroomProblem::FemaleEnter, &bathroomProblem);
+    thread t3 = thread(&BathroomProblem::MaleEnter, &bathroomProblem);
+    thread t4 = thread(&BathroomProblem::FemaleEnter, &bathroomProblem);
+    thread t5 = thread(&BathroomProblem::MaleExit, &bathroomProblem);
+    thread t6 = thread(&BathroomProblem::MaleEnter, &bathroomProblem);
+    
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+    t5.join();
+    t6.join();
+    
+    return 0;
+}
