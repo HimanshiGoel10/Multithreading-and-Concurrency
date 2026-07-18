@@ -1,0 +1,58 @@
+class Foo {
+public:
+    bool firstTurn;
+    bool secondTurn;
+    bool thirdTurn;
+
+    condition_variable cv;
+    mutex mtx;
+
+    Foo() {
+        firstTurn = true;
+        secondTurn = false;
+        thirdTurn = false;
+    }
+
+    void first(function<void()> printFirst) {
+        
+        // printFirst() outputs "first". Do not change or remove this line.
+        unique_lock <mutex> lock (mtx);
+
+        while(!firstTurn){
+            cv.wait(lock);
+        }
+        printFirst();
+        firstTurn = false;
+        secondTurn = true;
+        cv.notify_all();
+    }
+
+    void second(function<void()> printSecond) {
+        
+        // printSecond() outputs "second". Do not change or remove this line.
+        unique_lock <mutex> lock (mtx);
+
+        while(!secondTurn){
+            cv.wait(lock);
+        }
+        printSecond();
+        thirdTurn = true;
+        secondTurn = false;
+        cv.notify_all();
+        
+    }
+
+    void third(function<void()> printThird) {
+        
+        // printThird() outputs "third". Do not change or remove this line.
+        unique_lock <mutex> lock (mtx);
+
+        while(!thirdTurn){
+            cv.wait(lock);
+        }
+        printThird();
+        firstTurn = true;
+        thirdTurn = false;
+        cv.notify_all();
+    }
+};
