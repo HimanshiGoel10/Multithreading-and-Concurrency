@@ -1,0 +1,78 @@
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <semaphore>
+#include <condition_variable>
+using namespace std;
+
+class ThreadPool {
+    
+    private:
+    mutex mtx;
+    condition_variable cv;
+    queue <function<void()>> q;
+    vector<thread> workers;
+    bool stop;
+    
+    public:
+    
+    ThreadPool (int n) {
+        
+        stop = false;
+        
+        for (int i=0; i<n; i++){
+            workers.emplace_back(&ThreadPool::work, this);
+        }
+    }
+    
+    void work (){
+        while(true){
+            unique_lock <mutex> lock(mtx);
+            while(q.empty() && !stop){
+                cv.wait(lock);
+            }
+            if(stop && q.empty()) return;
+            auto frontTask = q.front();
+            q.pop();
+            lock.unlock();
+            frontTask();
+        }
+        
+    }
+    
+    void submit(function<void()> task){
+        {
+            unique_lock <mutex> lock(mtx);
+            q.push(task);
+        }
+        cv.notify_one();
+    }
+    
+    ~ThreadPool(){
+        {
+            unique_lock <mutex> lock(mtx);
+            stop = true;
+        }
+        cv.notify_all();
+        
+        for(auto& worker : workers){
+            worker.join();
+        }
+    }
+};
+void task (){
+        cout<<"himanshi "<<this_thread::get_id()<<endl;
+}
+int main() {
+    ThreadPool threadpool(3);
+    thread t1 = thread(&ThreadPool::submit, &threadpool, task);
+    thread t2 = thread(&ThreadPool::submit, &threadpool, task);
+    thread t3 = thread(&ThreadPool::submit, &threadpool, task);
+    thread t4 = thread(&ThreadPool::submit, &threadpool, task);
+    thread t5 = thread(&ThreadPool::submit, &threadpool, task);
+    thread t6 = thread(&ThreadPool::submit, &threadpool, task);
+    t1.join(); t2.join();
+    t3.join(); t4.join();
+    t5.join(); t6.join();
+    return 0;
+}
