@@ -1,0 +1,43 @@
+class H2O {
+public:
+    counting_semaphore <2> h2;
+    counting_semaphore <1> o2;
+    mutex mtx;
+    int count;
+
+    H2O() : h2(2), o2(1){
+        count=0;
+    }
+
+    void hydrogen(function<void()> releaseHydrogen) {
+        
+        // releaseHydrogen() outputs "H". Do not change or remove this line.
+        h2.acquire();
+        releaseHydrogen();
+        {
+            unique_lock<mutex> lock(mtx);
+            count++;
+            if(count==3){
+                h2.release(2);
+                o2.release();
+                count=0;
+            }
+        }
+    }
+
+    void oxygen(function<void()> releaseOxygen) {
+        
+        // releaseOxygen() outputs "O". Do not change or remove this line.
+        o2.acquire();
+        releaseOxygen();
+        {
+            unique_lock<mutex> lock(mtx);
+            count++;
+            if(count==3){
+                h2.release(2);
+                o2.release();
+                count=0;
+            }
+        }
+    }
+};
