@@ -1,0 +1,100 @@
+#include <iostream>
+#include <thread>
+#include <mutex>
+#include <semaphore>
+#include <condition_variable>
+using namespace std;
+
+class BathroomProblem {
+    private:
+    mutex mtx;
+    condition_variable cv;
+    
+    enum Gender{
+        male,
+        female,
+        neutral
+    };
+    Gender owner;
+    int count;
+    int n;
+    Gender turn;
+    
+    int waitingMales;
+    int waitingFemales;
+    
+    public:
+    BathroomProblem (int n){
+        owner = neutral;
+        count = 0;
+        this->n = n;
+        waitingMales = 0;
+        waitingFemales = 0;
+        turn = neutral;
+    }
+    
+    void MaleEnter() {
+        unique_lock <mutex> lock(mtx);
+        waitingMales++;
+        while(owner==female || count==n || (owner==neutral && turn==female && waitingFemales>0)){
+            cv.wait(lock);
+        }
+        owner = male;
+        waitingMales--;
+        count++;
+    }
+    
+    void FemaleEnter() {
+        unique_lock <mutex> lock(mtx);
+        waitingFemales++;
+        while(owner==male || count==n || (owner == neutral && turn==male && waitingMales>0)){
+            cv.wait(lock);
+        }
+        owner = female;
+        waitingFemales--;
+        count++;
+    }
+    
+    void MaleExit() {
+        unique_lock <mutex> lock(mtx);
+        count--;
+        if(count==0){
+            if(waitingFemales){
+                turn = female;
+            }
+            owner = neutral;
+        }
+        cv.notify_all();
+    }
+    
+    void FemaleExit() {
+        unique_lock <mutex> lock(mtx);
+        count--;
+        if(count==0){
+            if(waitingMales){
+                turn = male;
+            }
+            owner = neutral;
+        }
+        cv.notify_all();
+    }
+};
+int main() {
+    BathroomProblem bathroomProblem(3);
+    
+    thread t1 = thread(&BathroomProblem::MaleEnter, &bathroomProblem);
+    thread t2 = thread(&BathroomProblem::FemaleEnter, &bathroomProblem);
+    thread t3 = thread(&BathroomProblem::MaleEnter, &bathroomProblem);
+    thread t4 = thread(&BathroomProblem::FemaleEnter, &bathroomProblem);
+    thread t5 = thread(&BathroomProblem::MaleExit, &bathroomProblem);
+    thread t6 = thread(&BathroomProblem::MaleEnter, &bathroomProblem);
+    
+    t1.join();
+    t2.join();
+    t3.join();
+    t4.join();
+    t5.join();
+    t6.join();
+    
+    return 0;
+}
