@@ -1,0 +1,44 @@
+class DiningPhilosophers {
+public:
+    counting_semaphore<1> forks[5] = {
+        counting_semaphore<1> (1),
+        counting_semaphore<1> (1),
+        counting_semaphore<1> (1),
+        counting_semaphore<1> (1),
+        counting_semaphore<1> (1)
+    };
+    DiningPhilosophers() {
+        
+    }
+
+    void wantsToEat(int philosopher,
+                    function<void()> pickLeftFork,
+                    function<void()> pickRightFork,
+                    function<void()> eat,
+                    function<void()> putLeftFork,
+                    function<void()> putRightFork) {
+		int left = philosopher;
+        int right = (philosopher+1)%5;
+
+        int fork1 = min(left,right);
+        int fork2 = max(left,right);
+
+        forks[fork1].acquire();
+        forks[fork2].acquire();
+
+        if(fork1==left){
+            pickLeftFork();
+            pickRightFork();
+        }
+        else{
+            pickRightFork();
+            pickLeftFork();
+        }
+        eat();
+        putLeftFork();
+        putRightFork();
+
+        forks[fork1].release();
+        forks[fork2].release();
+    }
+};
