@@ -1,0 +1,62 @@
+class LRUCache {
+public:
+    int n;
+    list <int> ll;
+    unordered_map <int, pair<list<int>::iterator, int>> mp;
+    mutex mtx;
+
+    LRUCache(int capacity) {
+        n = capacity;
+    }
+    
+    int get(int key) {
+        lock_guard <mutex> lock(mtx);
+
+        if(mp.find(key)==mp.end()) return -1;
+
+        int value = mp[key].second;
+        auto nodeAddress = mp[key].first;
+
+        ll.erase(nodeAddress);
+        ll.push_back(key);
+
+        mp[key].first = prev(ll.end());
+
+        return value;
+    }
+    
+    void put(int key, int value) {
+        lock_guard <mutex> lock(mtx);
+
+        //update
+        if(mp.find(key)!=mp.end()) {
+            mp[key].second = value;
+            auto nodeAddress = mp[key].first;
+            ll.erase(nodeAddress);
+            ll.push_back(key);
+            mp[key].first = prev(ll.end());
+            return;
+        }
+
+        // no. eviction needed
+        if(ll.size()<n){
+            ll.push_back(key);
+            mp[key] = {prev(ll.end()), value};
+            return;
+        }
+
+        // eviction needed
+        mp.erase(ll.front());
+        ll.pop_front();
+
+        ll.push_back(key);
+        mp[key] = {prev(ll.end()), value};
+    }
+};
+
+/**
+ * Your LRUCache object will be instantiated and called as such:
+ * LRUCache* obj = new LRUCache(capacity);
+ * int param_1 = obj->get(key);
+ * obj->put(key,value);
+ */
