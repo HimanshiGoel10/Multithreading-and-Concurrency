@@ -1,0 +1,143 @@
+#include <iostream>
+#include <unordered_map>
+#include <list>
+#include <vector>
+#include <mutex>
+
+using namespace std;
+
+class LRUShard {
+private:
+    int capacity;
+
+    list<int> lru;
+
+    unordered_map<
+        int,
+        pair<list<int>::iterator, int>
+    > mp;
+
+    mutex mtx;
+
+public:
+    LRUShard(int cap) : capacity(cap) {}
+
+    int get(int key)
+    {
+        lock_guard<mutex> lock(mtx);
+
+        auto it = mp.find(key);
+
+        if(it == mp.end())
+            return -1;
+
+        int value = it->second.second;
+
+        lru.erase(it->second.first);
+
+        lru.push_back(key);
+
+        it->second.first = prev(lru.end());
+
+        return value;
+    }
+
+    void put(int key, int value)
+    {
+        lock_guard<mutex> lock(mtx);
+
+        auto it = mp.find(key);
+
+        if(it != mp.end())
+        {
+            it->second.second = value;
+
+            lru.erase(it->second.first);
+
+            lru.push_back(key);
+
+            it->second.first = prev(lru.end());
+
+            return;
+        }
+
+        if(mp.size() == capacity)
+        {
+            int evictKey = lru.front();
+
+            lru.pop_front();
+
+            mp.erase(evictKey);
+        }
+
+        lru.push_back(key);
+
+        mp[key] = {
+            prev(lru.end()),
+            value
+        };
+    }
+};
+
+class ShardedLRUCache {
+private:
+    vector<unique_ptr<LRUShard>> shards;
+
+    int numShards;
+
+    int getShard(int key)
+    {
+        return hash<int>{}(key) % numShards;
+    }
+
+public:
+    ShardedLRUCache(
+        int totalCapacity,
+        int shardCount)
+    {
+        numShards = shardCount;
+
+        int shardCapacity =
+            totalCapacity / shardCount;
+
+        for(int i = 0; i < shardCount; i++)
+        {
+            shards.push_back(
+                make_unique<LRUShard>(
+                    shardCapacity
+                )
+            );
+        }
+    }
+
+    int get(int key)
+    {
+        int shard =
+            getShard(key);
+
+        return shards[shard]->get(key);
+    }
+
+    void put(int key, int value)
+    {
+        int shard =
+            getShard(key);
+
+        shards[shard]->put(key, value);
+    }
+};
+
+int main()
+{
+    ShardedLRUCache cache(100, 4);
+
+    cache.put(1, 10);
+    cache.put(2, 20);
+    cache.put(3, 30);
+
+    cout << cache.get(1) << endl;
+    cout << cache.get(2) << endl;
+    cout << cache.get(100) << endl;
+
+    return 0;
+}
