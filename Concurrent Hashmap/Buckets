@@ -1,0 +1,79 @@
+#include <iostream>
+#include <vector>
+#include <unordered_map>
+#include <shared_mutex>
+
+using namespace std;
+
+class ConcurrentHashMap {
+private:
+    struct Bucket {
+        unordered_map<string, int> mp;
+        mutable shared_mutex mtx;
+    };
+
+    vector<Bucket> buckets;
+
+    int getBucketIndex(const string& key) const {
+        return hash<string>{}(key) % buckets.size();
+    }
+
+public:
+    ConcurrentHashMap(int numBuckets = 16)
+        : buckets(numBuckets) {}
+
+    void put(const string& key, int value) {
+        int idx = getBucketIndex(key);
+
+        unique_lock<shared_mutex> lock(buckets[idx].mtx);
+
+        buckets[idx].mp[key] = value;
+    }
+
+    bool get(const string& key, int& value) const {
+        int idx = getBucketIndex(key);
+
+        shared_lock<shared_mutex> lock(buckets[idx].mtx);
+
+        auto it = buckets[idx].mp.find(key);
+
+        if (it == buckets[idx].mp.end())
+            return false;
+
+        value = it->second;
+        return true;
+    }
+
+    bool remove(const string& key) {
+        int idx = getBucketIndex(key);
+
+        unique_lock<shared_mutex> lock(buckets[idx].mtx);
+
+        auto it = buckets[idx].mp.find(key);
+
+        if (it == buckets[idx].mp.end())
+            return false;
+
+        buckets[idx].mp.erase(it);
+        return true;
+    }
+};
+
+int main() {
+    ConcurrentHashMap mp;
+
+    mp.put("user1", 100);
+    mp.put("user2", 200);
+
+    int value;
+
+    if (mp.get("user1", value))
+        cout << "user1 = " << value << endl;
+
+    mp.remove("user1");
+
+    if (!mp.get("user1", value))
+        cout << "user1 not found" << endl;
+
+    return 0;
+}
