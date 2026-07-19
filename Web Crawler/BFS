@@ -1,0 +1,130 @@
+#include <iostream>
+#include <thread>
+#include <vector>
+#include <queue>
+#include <unordered_set>
+#include <mutex>
+#include <condition_variable>
+
+using namespace std;
+
+class WebCrawler {
+private:
+    queue<string> urlQueue;
+    unordered_set<string> visited;
+
+    vector<thread> workers;
+
+    mutex mtx;
+    condition_variable cv;
+
+    bool stop = false;
+    int activeWorkers = 0;
+
+    vector<string> parser(string url) {
+        if (url == "abc.com") {
+            return {"bcd.com", "def.com", "ghi.com"};
+        }
+
+        if (url == "ghi.com") {
+            return {"abc.com", "xyz.com"};
+        }
+
+        if (url == "def.com") {
+            return {"pqr.com"};
+        }
+
+        return {};
+    }
+
+    void worker() {
+
+        while (true) {
+
+            string url;
+
+            {
+                unique_lock<mutex> lock(mtx);
+
+                cv.wait(lock, [this] {
+                    return stop || !urlQueue.empty();
+                });
+
+                if (stop && urlQueue.empty()) {
+                    return;
+                }
+
+                url = urlQueue.front();
+                urlQueue.pop();
+
+                activeWorkers++;
+            }
+
+            cout << "Crawling : "
+                 << url
+                 << " Thread : "
+                 << this_thread::get_id()
+                 << endl;
+
+            vector<string> children = parser(url);
+
+            {
+                unique_lock<mutex> lock(mtx);
+
+                for (auto &child : children) {
+
+                    if (visited.find(child) == visited.end()) {
+
+                        visited.insert(child);
+                        urlQueue.push(child);
+                    }
+                }
+
+                activeWorkers--;
+
+                if (urlQueue.empty() && activeWorkers == 0) {
+                    stop = true;
+                    cv.notify_all();
+                }
+            }
+
+            cv.notify_all();
+        }
+    }
+
+public:
+    WebCrawler(int numThreads) {
+
+        for (int i = 0; i < numThreads; i++) {
+            workers.emplace_back(
+                &WebCrawler::worker,
+                this
+            );
+        }
+    }
+
+    void crawl(string startUrl) {
+
+        {
+            lock_guard<mutex> lock(mtx);
+
+            visited.insert(startUrl);
+            urlQueue.push(startUrl);
+        }
+
+        cv.notify_all();
+
+        for (auto &t : workers) {
+            t.join();
+        }
+    }
+};
+
+int main() {
+
+    WebCrawler crawler(4);
+
+    crawler.crawl("abc.com");
+
+    return 0;
+}
