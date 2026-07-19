@@ -1,0 +1,56 @@
+#include <iostream>
+#include <unordered_map>
+#include <deque>
+#include <mutex>
+#include <ctime>
+
+using namespace std;
+
+struct UserBucket {
+    deque<long long> timestamps;
+    mutex mtx;
+};
+
+class RateLimiter {
+private:
+    int limit;
+    int windowSize;
+
+    unordered_map<string, UserBucket> users;
+
+    mutex mapMutex;
+
+public:
+
+    RateLimiter(int limit, int windowSize)
+        : limit(limit),
+          windowSize(windowSize) {}
+
+    bool allowRequest(const string& userId) {
+
+        UserBucket* bucket;
+
+        {
+            lock_guard<mutex> lock(mapMutex);
+            bucket = &users[userId];
+        }
+
+        lock_guard<mutex> userLock(bucket->mtx);
+
+        long long now = time(nullptr);
+
+        auto& dq = bucket->timestamps;
+
+        while (!dq.empty() &&
+               now - dq.front() >= windowSize) {
+            dq.pop_front();
+        }
+
+        if (dq.size() >= limit)
+            return false;
+
+        dq.push_back(now);
+
+        return true;
+    }
+};
