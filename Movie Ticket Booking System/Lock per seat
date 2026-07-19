@@ -1,0 +1,81 @@
+#include <iostream>
+#include <vector>
+#include <mutex>
+#include <shared_mutex>
+#include <thread>
+
+using namespace std;
+
+class MovieBookingSystem {
+private:
+    vector<bool> seats;
+    vector<shared_mutex> seatLocks;
+
+public:
+    MovieBookingSystem(int totalSeats)
+    {
+        seats.resize(totalSeats, false);
+        seatLocks = vector<shared_mutex>(totalSeats);
+    }
+
+    bool bookSeat(int seatId)
+    {
+        unique_lock<shared_mutex> lock(seatLocks[seatId]);
+
+        if (seats[seatId])
+            return false;
+
+        seats[seatId] = true;
+        return true;
+    }
+
+    bool cancelSeat(int seatId)
+    {
+        unique_lock<shared_mutex> lock(seatLocks[seatId]);
+
+        if (!seats[seatId])
+            return false;
+
+        seats[seatId] = false;
+        return true;
+    }
+
+    bool isAvailable(int seatId)
+    {
+        shared_lock<shared_mutex> lock(seatLocks[seatId]);
+        return !seats[seatId];
+    }
+};
+
+void user(MovieBookingSystem& system,
+          int userId,
+          int seatId)
+{
+    if(system.bookSeat(seatId))
+    {
+        cout << "User "
+             << userId
+             << " booked seat "
+             << seatId
+             << endl;
+    }
+    else
+    {
+        cout << "User "
+             << userId
+             << " failed\n";
+    }
+}
+
+int main()
+{
+    MovieBookingSystem system(100);
+
+    thread t1(user, ref(system), 1, 10);
+    thread t2(user, ref(system), 2, 10);
+    thread t3(user, ref(system), 3, 50);
+
+    t1.join();
+    t2.join();
+    t3.join();
+}
