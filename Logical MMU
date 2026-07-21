@@ -1,0 +1,143 @@
+#include <iostream>
+#include <unordered_map>
+#include <list>
+#include <deque>
+#include <vector>
+#include <mutex>
+
+using namespace std;
+
+class LogicalMMU {
+private:
+    int capacity;
+    long long timestamp;
+
+    // LRU
+    list<int> lru;
+
+    // pageId -> {LRU iterator, page data}
+    unordered_map<int,
+        pair<list<int>::iterator, string>> cache;
+
+    // Simulated physical memory
+    unordered_map<int, string> physicalMemory;
+
+    // pageId -> access history
+    unordered_map<int, deque<long long>> history;
+
+    mutex mtx;
+
+public:
+    LogicalMMU(int cap) {
+        capacity = cap;
+        timestamp = 0;
+
+        physicalMemory[1] = "Page1";
+        physicalMemory[2] = "Page2";
+        physicalMemory[3] = "Page3";
+        physicalMemory[4] = "Page4";
+        physicalMemory[5] = "Page5";
+    }
+
+    string getPage(int pageId) {
+        lock_guard<mutex> lock(mtx);
+
+        timestamp++;
+
+        // Cache Hit
+        if(cache.find(pageId) != cache.end()) {
+
+            auto node = cache[pageId].first;
+
+            lru.erase(node);
+            lru.push_back(pageId);
+
+            cache[pageId].first = prev(lru.end());
+
+            history[pageId].push_back(timestamp);
+
+            return cache[pageId].second;
+        }
+
+        // Cache Miss
+        if(physicalMemory.find(pageId) == physicalMemory.end()) {
+            return "Page Not Found";
+        }
+
+        // Eviction
+        if(cache.size() == capacity) {
+
+            int victim = lru.front();
+            lru.pop_front();
+
+            cache.erase(victim);
+        }
+
+        lru.push_back(pageId);
+
+        cache[pageId] =
+            {prev(lru.end()), physicalMemory[pageId]};
+
+        history[pageId].push_back(timestamp);
+
+        return physicalMemory[pageId];
+    }
+
+    long long getMostRecent(int pageId) {
+        lock_guard<mutex> lock(mtx);
+
+        if(history.find(pageId) == history.end() ||
+           history[pageId].empty()) {
+            return -1;
+        }
+
+        return history[pageId].back();
+    }
+
+    vector<long long> getKRecent(int pageId, int k) {
+        lock_guard<mutex> lock(mtx);
+
+        vector<long long> result;
+
+        if(history.find(pageId) == history.end()) {
+            return result;
+        }
+
+        auto &dq = history[pageId];
+
+        int start = max(0, (int)dq.size() - k);
+
+        for(int i = start; i < dq.size(); i++) {
+            result.push_back(dq[i]);
+        }
+
+        return result;
+    }
+};
+
+int main() {
+
+    LogicalMMU mmu(3);
+
+    cout << mmu.getPage(1) << endl;
+    cout << mmu.getPage(2) << endl;
+    cout << mmu.getPage(1) << endl;
+    cout << mmu.getPage(3) << endl;
+    cout << mmu.getPage(1) << endl;
+
+    cout << "\nMost Recent Access of Page 1: "
+         << mmu.getMostRecent(1) << endl;
+
+    vector<long long> recent =
+        mmu.getKRecent(1, 2);
+
+    cout << "Last 2 Accesses of Page 1: ";
+
+    for(long long t : recent) {
+        cout << t << " ";
+    }
+
+    cout << endl;
+
+    return 0;
+}
